@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>监控配置</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>监控配置</h2>
+        <div class="mb-3">
+            <button class="btn btn-primary" onclick="showNewConfigModal()">新增配置</button>
+            <button class="btn btn-success ms-2" onclick="downloadTemplate()">下载模板</button>
+            <div class="btn-group ms-2">
+                <button class="btn btn-info" onclick="document.getElementById('fileInput').click()">导入配置</button>
+                <input type="file" id="fileInput" style="display: none" accept=".xlsx" onchange="importConfigs(this)">
+            </div>
+        </div>
+        
+        <!-- 配置列表表格 -->
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>名称</th>
+                    <th>系统</th>
+                    <th>主机</th>
+                    <th>端口</th>
+                    <th>数据库</th>
+                    <th>环境</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for config in configs %}
+                <tr>
+                    <td>{{ config.name }}</td>
+                    <td>{{ config.system }}</td>
+                    <td>{{ config.host }}</td>
+                    <td>{{ config.port }}</td>
+                    <td>{{ config.database }}</td>
+                    <td>{{ config.env }}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editConfig({{ config.id }})">编辑</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteConfig({{ config.id }})">删除</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- 配置模态框 -->
+        <div class="modal fade" id="configModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">配置详情</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="configForm">
+                            <input type="hidden" id="configId" name="id">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="configName" class="form-label">名称</label>
+                                    <input type="text" class="form-control" id="configName" name="name" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="configSystem" class="form-label">系统</label>
+                                    <input type="text" class="form-control" id="configSystem" name="system" required>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="configHost" class="form-label">主机</label>
+                                    <input type="text" class="form-control" id="configHost" name="host" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="configPort" class="form-label">端口</label>
+                                    <input type="number" class="form-control" id="configPort" name="port" required>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="configUser" class="form-label">用户名</label>
+                                    <input type="text" class="form-control" id="configUser" name="user" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="configPassword" class="form-label">密码</label>
+                                    <input type="password" class="form-control" id="configPassword" name="password" required>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="configDatabase" class="form-label">数据库</label>
+                                    <input type="text" class="form-control" id="configDatabase" name="database" required>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="configEnv" class="form-label">环境</label>
+                                    <input type="text" class="form-control" id="configEnv" name="env" required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="configQuery" class="form-label">查询语句</label>
+                                <textarea class="form-control" id="configQuery" name="query" rows="3" required></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                        <button type="button" class="btn btn-primary" onclick="submitConfig()">保存</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        let configModal;
+        
+        // 页面加载完成后初始化模态框
+        document.addEventListener('DOMContentLoaded', function() {
+            configModal = new bootstrap.Modal(document.getElementById('configModal'));
+        });
+
+        // 显示新配置模态框
+        function showNewConfigModal() {
+            document.getElementById('configForm').reset();
+            document.getElementById('configId').value = '';
+            configModal.show();
+        }
+
+        // 编辑配置
+        function editConfig(id) {
+            fetch(`/config/${id}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const config = data.data;
+                        document.getElementById('configId').value = config.id;
+                        document.getElementById('configName').value = config.name;
+                        document.getElementById('configSystem').value = config.system;
+                        document.getElementById('configHost').value = config.host;
+                        document.getElementById('configPort').value = config.port;
+                        document.getElementById('configUser').value = config.user;
+                        document.getElementById('configPassword').value = config.password;  // 显示原密码
+                        document.getElementById('configDatabase').value = config.database;
+                        document.getElementById('configEnv').value = config.env;
+                        document.getElementById('configQuery').value = config.query;
+                        
+                        configModal.show();
+                    } else {
+                        alert('获取配置失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('获取配置失败');
+                });
+        }
+
+        // 提交配置
+        function submitConfig() {
+            const formData = new FormData(document.getElementById('configForm'));
+            const data = Object.fromEntries(formData.entries());
+            data.port = parseInt(data.port);
+
+            fetch('/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    configModal.hide();
+                    location.reload();
+                } else {
+                    alert('保存失败：' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('保存失败');
+            });
+        }
+
+        // 删除配置
+        function deleteConfig(id) {
+            if (confirm('确定要删除这个配置吗？')) {
+                fetch(`/config/${id}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        location.reload();
+                    } else {
+                        alert('删除失败：' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('删除失败');
+                });
+            }
+        }
+
+        // 下载模板
+        function downloadTemplate() {
+            // 数据sheet的内容
+            const dataTemplate = [
+                ['Name (英文名称)*', 'System (系统)*', 'Host (主机)*', 'Port (端口)*', 'User (用户名)*', 'Password (密码)*', 'Database (数据库)*', 'Env (环境)*', 'Query (查询语句)*'],
+                ['new_users_count', 'user_system', 'localhost', '3306', 'root', 'password', 'user_db', 'prod', 'SELECT COUNT(*) FROM users WHERE DATE(create_time) = CURDATE()'],
+    
+            ];
+
+            // 说明sheet的内容
+            const instructionTemplate = [
+                ['配置说明'],
+                ['1. 命名规范'],
+                ['   - 只能使用英文、数字、下划线'],
+                ['   - 必须以字母开头'],
+                ['   - 建议使用小写字母'],
+                ['   - 使用下划线分隔单词'],
+                ['   - 名称要具有描述性'],
+                [''],
+                ['2. 字段说明'],
+                ['   Name: 监控指标名称，必须符合命名规范'],
+                ['   System: 系统标识，建议使用小写加下划线'],
+                ['   Host: 数据库主机地址'],
+                ['   Port: 数据库端口'],
+                ['   User: 数据库用户名'],
+                ['   Password: 数据库密码'],
+                ['   Database: 数据库名称'],
+                ['   Env: 环境标识(dev/test/prod)'],
+                ['   Query: SQL查询语句，必须返回单个数值'],
+                [''],
+                ['3. 查询示例'],
+                ['   - 统计总数：SELECT COUNT(*) FROM table_name'],
+                ['   - 当日统计：SELECT COUNT(*) FROM table_name WHERE DATE(create_time) = CURDATE()'],
+                ['   - 状态统计：SELECT COUNT(*) FROM table_name WHERE status = "pending"'],
+                ['   - 时间范围：SELECT COUNT(*) FROM table_name WHERE create_time >= DATE_SUB(NOW(), INTERVAL 5 MINUTE)']
+            ];
+
+            // 创建工作簿
+            const wb = XLSX.utils.book_new();
+            
+            // 创建数据sheet
+            const ws_data = XLSX.utils.aoa_to_sheet(dataTemplate);
+            
+            // 创建说明sheet
+            const ws_instruction = XLSX.utils.aoa_to_sheet(instructionTemplate);
+
+            // 设置数据sheet的列宽
+            ws_data['!cols'] = [
+                {wch: 20}, // Name
+                {wch: 15}, // System
+                {wch: 15}, // Host
+                {wch: 8},  // Port
+                {wch: 12}, // User
+                {wch: 15}, // Password
+                {wch: 15}, // Database
+                {wch: 8},  // Env
+                {wch: 60}  // Query
+            ];
+
+            // 设置说明sheet的列宽
+            ws_instruction['!cols'] = [{wch: 100}];
+
+            // 添加sheet到工作簿
+            XLSX.utils.book_append_sheet(wb, ws_data, "配置数据");
+            XLSX.utils.book_append_sheet(wb, ws_instruction, "使用说明");
+
+            // 下载文件
+            XLSX.writeFile(wb, "monitor_config_template.xlsx");
+        }
+
+        // 导入配置
+        function importConfigs(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const configs = XLSX.utils.sheet_to_json(sheet, {header: 1});
+
+                    // 移除表头
+                    configs.shift();
+
+                    // 转换数据格式，确保数据类型正确
+                    const configsData = configs.map(row => {
+                        // 确保端口是数字类型
+                        const port = parseInt(row[3]);
+                        if (isNaN(port)) {
+                            throw new Error(`无效的端口号: ${row[3]}`);
+                        }
+
+                        // 清理 SQL 查询语句
+                        const query = String(row[8] || '')
+                            .replace(/\xa0/g, ' ')  // 替换不间断空格
+                            .replace(/\s+/g, ' ')   // 替换多个空格为单个空格
+                            .trim();                // 去除首尾空格
+
+                        return {
+                            name: String(row[0] || '').trim(),
+                            system: String(row[1] || '').trim(),
+                            host: String(row[2] || '').trim(),
+                            port: port,
+                            user: String(row[4] || '').trim(),
+                            password: String(row[5] || '').trim(),
+                            database: String(row[6] || '').trim(),
+                            env: String(row[7] || '').trim(),
+                            query: query
+                        };
+                    });
+
+                    // 验证数据
+                    for (const config of configsData) {
+                        if (!config.name || !config.system || !config.host || !config.port || 
+                            !config.user || !config.password || !config.database || 
+                            !config.env || !config.query) {
+                            throw new Error('所有字段都必须填写');
+                        }
+                    }
+
+                    // 创建确认对话框
+                    const modalDiv = document.createElement('div');
+                    modalDiv.className = 'modal fade';
+                    modalDiv.id = 'importConfirmModal';
+                    modalDiv.innerHTML = `
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">确认导入</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <p>即将导入 ${configsData.length} 条配置记录，是否继续？</p>
+                                    <div class="alert alert-info">
+                                        <strong>导入预览：</strong>
+                                        <ul>
+                                            ${configsData.map(config => 
+                                                `<li>${config.name} (${config.system} - ${config.env})</li>`
+                                            ).join('')}
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                                    <button type="button" class="btn btn-primary" id="confirmImportBtn">确认导入</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // 添加到文档中
+                    document.body.appendChild(modalDiv);
+                    
+                    // 显示确认对话框
+                    const confirmModal = new bootstrap.Modal(modalDiv);
+                    confirmModal.show();
+
+                    // 监听模态框关闭事件，清理DOM
+                    modalDiv.addEventListener('hidden.bs.modal', function () {
+                        document.body.removeChild(modalDiv);
+                    });
+
+                    // 添加到文档中后，绑定点击事件
+                    document.body.appendChild(modalDiv);
+                    document.getElementById('confirmImportBtn').addEventListener('click', function() {
+                        confirmImport(configsData);
+                    });
+
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('解析文件失败：' + error.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 确认导入函数
+        function confirmImport(configsData) {
+            // 显示加载提示
+            const loadingToast = document.createElement('div');
+            loadingToast.className = 'position-fixed top-50 start-50 translate-middle p-3 bg-light rounded shadow';
+            loadingToast.innerHTML = `
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border text-primary me-2" role="status">
+                        <span class="visually-hidden">正在导入...</span>
+                    </div>
+                    <div>正在导入配置，请稍候...</div>
+                </div>
+            `;
+            document.body.appendChild(loadingToast);
+
+            // 关闭确认对话框
+            const importConfirmModal = bootstrap.Modal.getInstance(document.getElementById('importConfirmModal'));
+            if (importConfirmModal) {
+                importConfirmModal.hide();
+            }
+
+            // 发送请求
+            fetch('/config/batch_import', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(configsData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                // 移除加载提示
+                loadingToast.remove();
+                
+                if (data.status === 'success') {
+                    // 显示成功提示
+                    const successToast = document.createElement('div');
+                    successToast.className = 'position-fixed top-50 start-50 translate-middle p-3 bg-success text-white rounded shadow';
+                    successToast.style.zIndex = '9999';  // 确保提示显示在最上层
+                    successToast.innerHTML = `
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-check-circle me-2"></i>
+                            <div>导入成功！页面将在 2 秒后刷新...</div>
+                        </div>
+                    `;
+                    document.body.appendChild(successToast);
+                    
+                    // 2秒后刷新页面
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    // 显示错误提示
+                    const errorToast = document.createElement('div');
+                    errorToast.className = 'position-fixed top-50 start-50 translate-middle p-3 bg-danger text-white rounded shadow';
+                    errorToast.style.zIndex = '9999';
+                    errorToast.innerHTML = `
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-x-circle me-2"></i>
+                            <div>导入失败：${data.message}</div>
+                        </div>
+                    `;
+                    document.body.appendChild(errorToast);
+                    
+                    // 3秒后移除错误提示
+                    setTimeout(() => {
+                        errorToast.remove();
+                    }, 3000);
+                }
+            })
+            .catch(error => {
+                // 移除加载提示
+                loadingToast.remove();
+                
+                // 显示错误提示
+                const errorToast = document.createElement('div');
+                errorToast.className = 'position-fixed top-50 start-50 translate-middle p-3 bg-danger text-white rounded shadow';
+                errorToast.style.zIndex = '9999';
+                errorToast.innerHTML = `
+                    <div class="d-flex align-items-center">
+                        <i class="bi bi-x-circle me-2"></i>
+                        <div>导入失败，请检查数据格式和网络连接</div>
+                    </div>
+                `;
+                document.body.appendChild(errorToast);
+                
+                // 3秒后移除错误提示
+                setTimeout(() => {
+                    errorToast.remove();
+                }, 3000);
+                
+                console.error('Error:', error);
+            });
+        }
+
+        // 清理文件输入框的值，以便可以重复选择同一个文件
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            if (!e.target.files.length) {
+                e.target.value = '';
+            }
+        });
+    </script>
+</body>
+</html> 
